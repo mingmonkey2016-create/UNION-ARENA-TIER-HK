@@ -21,6 +21,8 @@
         .btn-add:hover { background: #218838; }
         .btn-delete { background: #dc3545; border-color: #bd2130; }
         .btn-delete:hover { background: #bd2130; }
+        .btn-clear { background: #6c757d; border-color: #545b62; }
+        .btn-clear:hover { background: #5a6268; }
         input[type="file"] { display: none; }
 
         #tier-container { width: 100%; max-width: 850px; background: #111; border: 2px solid #333; }
@@ -30,13 +32,7 @@
         .tier-label { width: 100px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px; color: black; text-shadow: 0 1px 2px rgba(255,255,255,0.3); user-select: none; text-align: center; border: none; outline: none; padding: 5px; word-break: break-all; cursor: pointer; }
         .tier-label:focus { background-color: #fff !important; color: #000 !important; text-shadow: none; }
         
-        .t-s { background-color: #ff7f7f; }
-        .t-a { background-color: #ffbf7f; }
-        .t-b { background-color: #ffdf7f; }
-        .t-c { background-color: #ffff7f; }
-        .t-d { background-color: #bfff7f; }
-        .t-e { background-color: #7fff7f; }
-        .t-f { background-color: #7f9fff; }
+        .t-row-color { background-color: #ff7f7f; } /* 預設顏色，會動態由儲存資料決定 */
 
         .tier-list { flex: 1; display: flex; flex-wrap: wrap; padding: 8px; gap: 8px; min-height: 90px; background: #1a1a1a; transition: background-color 0.2s; }
         
@@ -52,11 +48,11 @@
 <body>
 
     <h1>HONG KONG UNION ARENA TIER LIST</h1>
-    <div class="instructions">💡 提示：您可以直接上傳圖片，拖拽卡牌，或點擊左側字母修改標籤文字！</div>
+    <div class="instructions">💡 系統提示：所有排列與圖片均會「自動即時存檔」，重新整理或關閉網頁資料也不會遺失！</div>
     
     <div class="status-bar">
         <div>
-            目前權限：<span class="status-badge">⚡ 管理員模式（免密碼解鎖）</span>
+            目前權限：<span class="status-badge">⚡ 管理員模式（免密碼・自動儲存開啟）</span>
         </div>
     </div>
 
@@ -66,17 +62,11 @@
         <button class="btn-add" onclick="addTierRow()">➕ 新增一列</button>
         <button class="btn-delete" onclick="removeLastRow()">➖ 刪除最後一列</button>
         <button onclick="downloadTierList()">💾 下載排行榜圖片 (PNG)</button>
+        <button class="btn-clear" onclick="clearAllData()">🔄 一鍵清空重設</button>
     </div>
 
-    <div id="tier-container">
-        <div class="tier-row"><div class="tier-label t-s" contenteditable="true">S</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-a" contenteditable="true">A</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-b" contenteditable="true">B</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-c" contenteditable="true">C</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-d" contenteditable="true">D</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-e" contenteditable="true">E</div><div class="tier-list"></div></div>
-        <div class="tier-row"><div class="tier-label t-f" contenteditable="true">F</div><div class="tier-list"></div></div>
-    </div>
+    <!-- Tier 表格主體 (結構將由 JavaScript 動態載入或初始化) -->
+    <div id="tier-container"></div>
 
     <div class="bank-container">
         <h3>📦 待分配卡牌倉庫（請將卡牌拖曳至上方表格）</h3>
@@ -87,10 +77,110 @@
         const colorPalette = ['#ff7f7f', '#ffbf7f', '#ffdf7f', '#ffff7f', '#bfff7f', '#7fff7f', '#7f9fff', '#bf7fff', '#ff7fbf'];
         let draggedItem = null;
 
+        // 當網頁載入時，自動恢復上一次儲存的資料
         window.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.item').forEach(makeItemDraggable);
+            loadSavedData();
             enableDropZones();
         });
+
+        // 核心：將卡牌與標籤狀態儲存到 LocalStorage
+        function saveCurrentData() {
+            const container = document.getElementById('tier-container');
+            const rows = container.querySelectorAll('.tier-row');
+            const data = [];
+
+            rows.forEach(row => {
+                const labelElement = row.querySelector('.tier-label');
+                const listElement = row.querySelector('.tier-list');
+                const items = listElement.querySelectorAll('.item');
+                const itemImages = [];
+
+                items.forEach(item => {
+                    itemImages.push(item.style.backgroundImage);
+                });
+
+                data.push({
+                    labelText: labelElement.innerText,
+                    labelColor: labelElement.style.backgroundColor,
+                    items: itemImages
+                });
+            });
+
+            // 儲存底部倉庫的剩餘卡牌
+            const bankItems = document.getElementById('item-bank').querySelectorAll('.item');
+            const bankImages = [];
+            bankItems.forEach(item => bankImages.push(item.style.backgroundImage));
+
+            localStorage.setItem('ua_tier_list_rows', JSON.stringify(data));
+            localStorage.setItem('ua_tier_list_bank', JSON.stringify(bankImages));
+        }
+
+        // 核心：從 LocalStorage 讀取資料並建立網頁結構
+        function loadSavedData() {
+            const container = document.getElementById('tier-container');
+            container.innerHTML = ''; // 清空
+            const bank = document.getElementById('item-bank');
+            bank.innerHTML = '';
+
+            const savedRows = localStorage.getItem('ua_tier_list_rows');
+            const savedBank = localStorage.getItem('ua_tier_list_bank');
+
+            // 1. 如果有歷史存檔，恢復存檔
+            if (savedRows) {
+                const rowData = JSON.parse(savedRows);
+                rowData.forEach(data => {
+                    createRowElement(data.labelText, data.labelColor, data.items);
+                });
+            } else {
+                // 2. 沒有存檔則初始化經典的 7 個階級
+                const defaultLabels = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
+                defaultLabels.forEach((label, index) => {
+                    createRowElement(label, colorPalette[index % colorPalette.length], []);
+                });
+            }
+
+            // 恢復倉庫卡牌
+            if (savedBank) {
+                const bankData = JSON.parse(savedBank);
+                bankData.forEach(bgImg => {
+                    const newItem = document.createElement('div');
+                    newItem.className = 'item';
+                    newItem.style.backgroundImage = bgImg;
+                    makeItemDraggable(newItem);
+                    bank.appendChild(newItem);
+                });
+            }
+        }
+
+        // 輔助建立 Tier 列的函數
+        function createRowElement(text, color, itemSrcs) {
+            const container = document.getElementById('tier-container');
+            const newRow = document.createElement('div');
+            newRow.className = 'tier-row';
+
+            const newLabel = document.createElement('div');
+            newLabel.className = 'tier-label';
+            newLabel.contentEditable = "true";
+            newLabel.innerText = text;
+            newLabel.style.backgroundColor = color;
+            bindLabelEvents(newLabel);
+
+            const newList = document.createElement('div');
+            newList.className = 'tier-list';
+
+            // 塞入該列存檔的卡牌
+            itemSrcs.forEach(bgImg => {
+                const newItem = document.createElement('div');
+                newItem.className = 'item';
+                newItem.style.backgroundImage = bgImg;
+                makeItemDraggable(newItem);
+                newList.appendChild(newItem);
+            });
+
+            newRow.appendChild(newLabel);
+            newRow.appendChild(newList);
+            container.appendChild(newRow);
+        }
 
         function makeItemDraggable(item) {
             item.draggable = true;
@@ -101,106 +191,22 @@
             item.addEventListener('dragend', function() {
                 this.style.opacity = '1';
                 draggedItem = null;
+                saveCurrentData(); // 拖曳結束立即觸發存檔
             });
         }
 
         function enableDropZones() {
-            const zones = document.querySelectorAll('.tier-list, #item-bank');
-            zones.forEach(zone => {
-                zone.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    this.classList.add('drag-over');
-                });
-                zone.addEventListener('dragleave', function() {
-                    this.classList.remove('drag-over');
-                });
-                zone.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    this.classList.remove('drag-over');
-                    if (draggedItem) {
-                        this.appendChild(draggedItem);
-                    }
-                });
-            });
-        }
-
-        function addTierRow() {
-            const container = document.getElementById('tier-container');
-            const currentRows = container.querySelectorAll('.tier-row').length;
+            const container = document.body;
             
-            const newRow = document.createElement('div');
-            newRow.className = 'tier-row';
-
-            const newLabel = document.createElement('div');
-            newLabel.className = 'tier-label';
-            newLabel.contentEditable = "true";
-            newLabel.innerText = 'NEW';
-            newLabel.style.backgroundColor = colorPalette[currentRows % colorPalette.length];
-            bindLabelEvents(newLabel);
-
-            const newList = document.createElement('div');
-            newList.className = 'tier-list';
-
-            newRow.appendChild(newLabel);
-            newRow.appendChild(newList);
-            container.appendChild(newRow);
-
-            enableDropZones();
-        }
-
-        function removeLastRow() {
-            const container = document.getElementById('tier-container');
-            const rows = container.querySelectorAll('.tier-row');
-            
-            if (rows.length > 1) {
-                const lastRow = rows[rows.length - 1];
-                const lastList = lastRow.querySelector('.tier-list');
-                const bank = document.getElementById('item-bank');
-
-                const remainingItems = lastList.querySelectorAll('.item');
-                remainingItems.forEach(item => bank.appendChild(item));
-
-                lastRow.remove();
-            } else {
-                alert('最少必須保留一個階級級別！');
-            }
-        }
-
-        function handleUpload(files) {
-            const bank = document.getElementById('item-bank');
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const newItem = document.createElement('div');
-                    newItem.className = 'item';
-                    newItem.style.backgroundImage = `url('${e.target.result}')`;
-                    makeItemDraggable(newItem);
-                    bank.appendChild(newItem);
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function downloadTierList() {
-            const container = document.getElementById('tier-container');
-            document.activeElement.blur();
-
-            html2canvas(container, { backgroundColor: '#111' }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'union-arena-tier-list.png';
-                link.href = canvas.toDataURL();
-                link.click();
-            });
-        }
-
-        function bindLabelEvents(label) {
-            label.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
+            container.addEventListener('dragover', function(e) {
+                const targetZone = e.target.closest('.tier-list, #item-bank');
+                if (targetZone) {
                     e.preventDefault();
-                    this.blur();
+                    document.querySelectorAll('.tier-list, #item-bank').forEach(z => z.classList.remove('drag-over'));
+                    targetZone.classList.add('drag-over');
                 }
             });
-        }
 
-        document.querySelectorAll('.tier-label').forEach(bindLabelEvents);
-    </script>
+            container.addEventListener('drop', function(e) {
+                const targetZone = e.target.closest('.tier-list, #item-bank');
+                if (targetZone) {
