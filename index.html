@@ -70,7 +70,7 @@
 <body>
 
     <h1>HONG KONG UNION ARENA TIER LIST</h1>
-    <div class="instructions" id="info-text">目前為訪客觀看模式。輸入密碼解鎖管理員功能。</div>
+    <div class="instructions" id="info-text">目前為訪客觀看模式。輸入密碼並按 Enter 解鎖管理員功能。</div>
     
     <!-- 狀態欄 -->
     <div class="status-bar">
@@ -81,7 +81,8 @@
         </div>
         <div id="login-zone">
             🔑 密碼：
-            <input type="password" id="admin-password" class="login-input" placeholder="輸入密碼解鎖" oninput="checkPassword(this.value)">
+            <!-- 改用 onkeydown 監聽 Enter 鍵 -->
+            <input type="password" id="admin-password" class="login-input" placeholder="按 Enter 送出" onkeydown="handleLoginKeyPress(event)">
         </div>
     </div>
 
@@ -140,34 +141,41 @@
         // 設定管理員密碼
         const ADMIN_PASSWORD = "070714"; 
         
-        // 增行時自動循環的顏色庫
         const colorPalette = ['#ff7f7f', '#ffbf7f', '#ffdf7f', '#ffff7f', '#bfff7f', '#7fff7f', '#7f9fff', '#bf7fff', '#ff7fbf'];
         let isAdmin = false;
         let draggedItem = null;
 
-        // 監聽密碼輸入（自動修正空格與大小寫問題）
-        function checkPassword(value) {
-            if (value.trim() === ADMIN_PASSWORD) {
-                enableAdminMode();
+        // 監聽鍵盤事件，只有按 Enter 才觸發驗證
+        function handleLoginKeyPress(event) {
+            if (event.key === "Enter") {
+                const passwordInput = document.getElementById('admin-password');
+                checkPassword(passwordInput.value);
             }
         }
 
-        // 啟用管理權限
+        // 驗證密碼
+        function checkPassword(value) {
+            if (value.trim() === ADMIN_PASSWORD) {
+                enableAdminMode();
+            } else {
+                alert("密碼錯誤，請再試一次！");
+                document.getElementById('admin-password').value = ""; // 清空輸入框
+            }
+        }
+
+        // 啟用管理權權限
         function enableAdminMode() {
             isAdmin = true;
             document.body.classList.add('admin-mode');
             
-            // 更新狀態界面
             document.getElementById('badge-viewer').style.display = 'none';
             document.getElementById('badge-admin').style.display = 'inline-block';
             document.getElementById('login-zone').style.display = 'none';
             document.getElementById('info-text').innerText = "💡 提示：您可以上傳圖片，拖拽卡牌，或直接點擊左側字母修改標籤文字！";
             
-            // 顯示隱藏面板
             document.getElementById('admin-controls').style.display = 'flex';
             document.getElementById('admin-bank-zone').style.display = 'block';
 
-            // 啟用文字編輯與原生拖放
             document.querySelectorAll('.tier-label').forEach(label => {
                 label.contentEditable = "true";
             });
@@ -176,7 +184,6 @@
             enableDropZones();
         }
 
-        // 賦予圖片拖拽能力
         function makeItemDraggable(item) {
             item.draggable = true;
             item.addEventListener('dragstart', function(e) {
@@ -190,7 +197,6 @@
             });
         }
 
-        // 激活放置區監聽
         function enableDropZones() {
             const zones = document.querySelectorAll('.tier-list, #item-bank');
             zones.forEach(zone => {
@@ -205,15 +211,3 @@
                     e.preventDefault();
                     this.classList.remove('drag-over');
                     if (isAdmin && draggedItem) {
-                        this.appendChild(draggedItem);
-                    }
-                });
-            });
-        }
-
-        // 新增一列
-        function addTierRow() {
-            if(!isAdmin) return;
-            const container = document.getElementById('tier-container');
-            const currentRows = container.querySelectorAll('.tier-row').length;
-            
