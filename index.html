@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HONG KONG UNION ARENA TIER LIST</title>
+    <!-- 引入 html2canvas 截圖下載庫 -->
+    <script src="https://cloudflare.com"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: #1a1a1a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { margin-bottom: 5px; color: #fff; text-align: center; font-size: 28px; letter-spacing: 1px; }
+        .instructions { font-size: 13px; color: #aaa; margin-bottom: 20px; text-align: center; }
+        
+        /* 權限狀態與登入欄位 */
+        .status-bar { margin-bottom: 25px; font-size: 14px; background: #222; padding: 10px 20px; border-radius: 20px; border: 1px solid #444; display: flex; gap: 15px; align-items: center; }
+        .status-badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+        .status-viewer { background: #6c757d; color: white; }
+        .status-admin { background: #28a745; color: white; display: none; }
+        .login-input { background: #333; border: 1px solid #555; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; width: 110px; outline: none; }
+        .login-input:focus { border-color: #28a745; }
+
+        /* 功能控制面板 */
+        .controls { margin-bottom: 20px; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        button, .custom-file-upload { background: #333; color: white; border: 1px solid #555; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; user-select: none; }
+        button:hover, .custom-file-upload:hover { background: #444; }
+        .btn-add { background: #28a745; border-color: #218838; }
+        .btn-add:hover { background: #218838; }
+        .btn-delete { background: #dc3545; border-color: #bd2130; }
+        .btn-delete:hover { background: #bd2130; }
+        .btn-download { display: inline-block !important; }
+        input[type="file"] { display: none; }
+
+        /* Tier List 表格主體 */
+        #tier-container { width: 100%; max-width: 850px; background: #111; border: 2px solid #333; }
+        .tier-row { display: flex; border-bottom: 2px solid #333; min-height: 90px; }
+        .tier-row:last-child { border-bottom: none; }
+        
+        /* 級別標籤 */
+        .tier-label { width: 100px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px; color: black; text-shadow: 0 1px 2px rgba(255,255,255,0.3); user-select: none; text-align: center; border: none; outline: none; pointer-events: none; padding: 5px; word-break: break-all; }
+        .tier-label:focus { background-color: #fff !important; color: #000 !important; text-shadow: none; }
+        
+        /* 7個初始階級顏色 */
+        .t-s { background-color: #ff7f7f; }
+        .t-a { background-color: #ffbf7f; }
+        .t-b { background-color: #ffdf7f; }
+        .t-c { background-color: #ffff7f; }
+        .t-d { background-color: #bfff7f; }
+        .t-e { background-color: #7fff7f; }
+        .t-f { background-color: #7f9fff; }
+
+        /* 卡牌放置區 */
+        .tier-list { flex: 1; display: flex; flex-wrap: wrap; padding: 8px; gap: 8px; min-height: 90px; background: #1a1a1a; transition: background-color 0.2s; }
+        
+        /* 底部未分配倉庫 */
+        .bank-container { width: 100%; max-width: 850px; margin-top: 30px; background: #222; padding: 15px; border-radius: 8px; border: 1px dashed #555; display: none; }
+        .bank-container h3 { margin-bottom: 10px; font-size: 16px; color: #aaa; }
+        #item-bank { display: flex; flex-wrap: wrap; gap: 8px; min-height: 110px; }
+
+        /* Union Arena 卡牌尺寸與樣式 */
+        .item { width: 74px; height: 104px; background-size: cover; background-position: center; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 2px 5px rgba(0,0,0,0.5); background-color: #333; }
+        
+        /* 解鎖管理員模式後的互動樣式 */
+        .admin-mode .item { cursor: grab; }
+        .admin-mode .item:active { cursor: grabbing; }
+        .admin-mode .tier-label { pointer-events: auto; cursor: pointer; }
+        .drag-over { background-color: #2d2d2d !important; border: 2px dashed #888; }
+    </style>
+</head>
+<body>
+
+    <h1>HONG KONG UNION ARENA TIER LIST</h1>
+    <div class="instructions" id="info-text">目前為訪客觀看模式。輸入密碼解鎖管理員功能。</div>
+    
+    <!-- 狀態欄 -->
+    <div class="status-bar">
+        <div>
+            目前權限：
+            <span id="badge-viewer" class="status-badge status-viewer">👀 訪客唯讀</span>
+            <span id="badge-admin" class="status-badge status-admin">⚡ 管理員已解鎖</span>
+        </div>
+        <div id="login-zone">
+            🔑 密碼：
+            <input type="password" id="admin-password" class="login-input" placeholder="輸入密碼解鎖" oninput="checkPassword(this.value)">
+        </div>
+    </div>
+
+    <!-- 管理功能按鈕 -->
+    <div class="controls" id="admin-controls">
+        <label for="file-upload" class="custom-file-upload">📁 上傳卡牌圖片</label>
+        <input id="file-upload" type="file" multiple accept="image/*" onchange="handleUpload(this.files)">
+        <button class="btn-add" onclick="addTierRow()">➕ 新增一列</button>
+        <button class="btn-delete" onclick="removeLastRow()">➖ 刪除最後一列</button>
+    </div>
+    
+    <!-- 下載按鈕 (所有人可用) -->
+    <div class="controls btn-download">
+        <button onclick="downloadTierList()">💾 下載排行榜圖片 (PNG)</button>
+    </div>
+
+    <!-- Tier List 表格主體 -->
+    <div id="tier-container">
+        <div class="tier-row">
+            <div class="tier-label t-s" contenteditable="false">S</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-a" contenteditable="false">A</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-b" contenteditable="false">B</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-c" contenteditable="false">C</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-d" contenteditable="false">D</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-e" contenteditable="false">E</div>
+            <div class="tier-list"></div>
+        </div>
+        <div class="tier-row">
+            <div class="tier-label t-f" contenteditable="false">F</div>
+            <div class="tier-list"></div>
+        </div>
+    </div>
+
+    <!-- 底部卡牌倉庫 -->
+    <div class="bank-container" id="admin-bank-zone">
+        <h3>📦 待分配卡牌倉庫（請將卡牌拖曳至上方表格）</h3>
+        <div id="item-bank"></div>
+    </div>
+
+    <script>
+        // 設定管理員密碼
+        const ADMIN_PASSWORD = "070714"; 
+        
+        // 增行時自動循環的顏色庫
+        const colorPalette = ['#ff7f7f', '#ffbf7f', '#ffdf7f', '#ffff7f', '#bfff7f', '#7fff7f', '#7f9fff', '#bf7fff', '#ff7fbf'];
+        let isAdmin = false;
+        let draggedItem = null;
+
+        // 監聽密碼輸入（自動修正空格與大小寫問題）
+        function checkPassword(value) {
+            if (value.trim() === ADMIN_PASSWORD) {
+                enableAdminMode();
+            }
+        }
+
+        // 啟用管理權限
+        function enableAdminMode() {
+            isAdmin = true;
+            document.body.classList.add('admin-mode');
+            
+            // 更新狀態界面
+            document.getElementById('badge-viewer').style.display = 'none';
+            document.getElementById('badge-admin').style.display = 'inline-block';
+            document.getElementById('login-zone').style.display = 'none';
+            document.getElementById('info-text').innerText = "💡 提示：您可以上傳圖片，拖拽卡牌，或直接點擊左側字母修改標籤文字！";
+            
+            // 顯示隱藏面板
+            document.getElementById('admin-controls').style.display = 'flex';
+            document.getElementById('admin-bank-zone').style.display = 'block';
+
+            // 啟用文字編輯與原生拖放
+            document.querySelectorAll('.tier-label').forEach(label => {
+                label.contentEditable = "true";
+            });
+
+            document.querySelectorAll('.item').forEach(makeItemDraggable);
+            enableDropZones();
+        }
+
+        // 賦予圖片拖拽能力
+        function makeItemDraggable(item) {
+            item.draggable = true;
+            item.addEventListener('dragstart', function(e) {
+                if(!isAdmin) return;
+                draggedItem = this;
+                setTimeout(() => this.style.opacity = '0.3', 0);
+            });
+            item.addEventListener('dragend', function() {
+                this.style.opacity = '1';
+                draggedItem = null;
+            });
+        }
+
+        // 激活放置區監聽
+        function enableDropZones() {
+            const zones = document.querySelectorAll('.tier-list, #item-bank');
+            zones.forEach(zone => {
+                zone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    if(isAdmin) this.classList.add('drag-over');
+                });
+                zone.addEventListener('dragleave', function() {
+                    this.classList.remove('drag-over');
+                });
+                zone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('drag-over');
+                    if (isAdmin && draggedItem) {
+                        this.appendChild(draggedItem);
+                    }
+                });
+            });
+        }
+
+        // 新增一列
+        function addTierRow() {
+            if(!isAdmin) return;
+            const container = document.getElementById('tier-container');
+            const currentRows = container.querySelectorAll('.tier-row').length;
+            
